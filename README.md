@@ -58,7 +58,7 @@ In the seeds.sql file, add some initial data to the tables. For example:
 ```
 TRUNCATE TABLE todos RESTART IDENTITY CASCADE;
 
-INSERT INTO todos ("item", "completed") VALUES
+INSERT INTO todos (task, completed) VALUES
 ('Eat', true),
 ('Sleep', false),
 ('Pray', false)
@@ -68,7 +68,105 @@ INSERT INTO todos ("item", "completed") VALUES
 -- psql -h 127.0.0.1 todolist < seeds.sql
 ```
 
+### Setup environment variables
+
+In the .env file, add the environment variables required for the database connection. For example:
+```
+DB_USERNAME=your_username
+DB_PASSWORD=your_password
+```
+
 ### Setup database connection
+
+In the db.js file, create a connection to the PostgreSQL database. For example:
+```
+require('dotenv').config();
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  user: process.env.DB_USERNAME,
+  password: process.env.DB_PASSWORD,
+  database: 'todolist',
+  host: 'localhost',
+  port: 5432
+})
+
+module.exports = pool;
+```
+
+### Write a function to reset the database data
+
+In the utils/resetDbData.js file, write a function to reset the database data. For example:
+```
+const pool = require('../db');
+
+const resetDbData = async () => {
+  const resetQuery = `
+    TRUNCATE TABLE todos RESTART IDENTITY CASCADE;
+
+    INSERT INTO todos (task, completed) VALUES
+    ('Eat', true),
+    ('Sleep', false),
+    ('Pray', false);
+  `;
+
+  try {
+    await pool.query(resetQuery);
+  } catch (error) {
+    console.log('Error resetting database', error);
+    throw error;
+  }
+};
+
+module.exports = resetDbData;
+```
+
+## Build the the API - Part 1
+
+### Setup the server
+
+In the app.js file, create the Express server and set up the required middleware. For example:
+```
+const express = require('express');
+const todoRoutes = require('./routes/todoRoutes');
+
+const app = express();
+
+app.use(express.json());
+
+app.get('/', (req, res) => {
+  res.status(200).json({ message: "it's ok" });
+});
+
+// app.use('/todos', todoRoutes);
+
+module.exports = app;
+```
+
+In the server.js file, start the server. For example:
+```
+const app = require('./app');
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
+```
+
+## Write scripts for starting the server and running tests
+
+In the package.json file, add the following scripts:
+```
+"scripts": {
+  "start": "node server.js",
+  "test": "jest --watchAll --detectOpenHandles"
+}
+```
+
+## Write an 
+
+
+
 
 
 
