@@ -8,6 +8,19 @@ The order in which the API and database are made are optional. These instruction
 
 The details of both the API and database obviously depend on the specific requirements of the project but for the sake of an example, this will be in the form of a simple to-do list project.
 
+## Contents
+
+1. [Setting up the repository](#setting-up-the-repository)
+2. [Setting up the database](#setting-up-the-database)
+3. [Prepare for using the database in the API](#prepare-for-using-the-database-in-the-api)
+4. [Server 1 - Basic Server Setup](#server-1---basic-server-setup)
+5. [Server 2 - Middleware and First Route](#server-2---middleware-and-first-route)
+6. [GET /todos 1 - First Todo Route](#get-todos-1---first-todo-route)
+7. [GET /todos 2 - Refactor the todo route](#get-todos-2---refactor-the-todo-route)
+8. [GET /todos 3 - Add the first controller function unit test](#get-todos-3---add-the-first-controller-function-unit-test)
+9. [GET /todos/:id 1 - Basic getTodoById controller function and unit test](#get-todosid-1---basic-gettodobyid-controller-function-and-unit-test)
+10. [GET /todos/:id 1 - Add error handling to getTodoById controller function](#get-todosid-1---add-error-handling-to-gettodobyid-controller-function)
+
 ## Setting up the repository
 
 Create a local directory for the project and navigate to it in the terminal. 
@@ -34,7 +47,7 @@ Assuming that PostgreSQL is installed, create a database and a user with the req
 createdb todolist
 ```
 
-### Setup tables
+### Set up tables
 
 In the tables.sql file, create the required tables for the project. For example:
 ```
@@ -52,7 +65,7 @@ CREATE TABLE todos (
 
 The last two lines of this are the commented out commands to run the tables.sql and seeds.sql files in the terminal.
 
-### Setup seeds
+### Set up seeds
 
 In the seeds.sql file, add some initial data to the tables. For example:
 ```
@@ -75,6 +88,8 @@ In the terminal, run the following commands to create and seed the database tabl
 psql -h 127.0.0.1 todolist < tables.sql
 psql -h 127.0.0.1 todolist < seeds.sql
 ```
+
+## Prepare for using the database in the API
 
 ### Setup environment variables
 
@@ -129,7 +144,7 @@ const resetDbData = async () => {
 module.exports = resetDbData;
 ```
 
-## Build the the API - Part 1 - Basic Server Setup
+## Server 1 - Basic Server Setup
 
 ### Setup the basic server
 
@@ -169,7 +184,7 @@ In the package.json file, add the following scripts:
 npm start
 ```
 
-## Build the the API - Part 2 - Middleware an First Route
+## Server 2 - Middleware and First Route
 
 ### Add middleware to app.js
 
@@ -204,15 +219,13 @@ This can be tested in the browser or using a tool like Postman by making a `GET`
 
 **NOTE:** The server must be running for this to work.
 
-## Build the the API - Part 3 - First Todo Route
+## GET /todos 1 - First Todo Route and Integration Test
 
 ### Import pool into app.js
 
 ```javascript
 const pool = require('./db');
 ```
-
-## Create and test the first todo route
 
 ### Create the todo route in app.js
 
@@ -278,7 +291,7 @@ describe('GET /todos', () => {
 npm test
 ```
 
-## Build the the API - Part 4 - Refactor the todo route
+## GET /todos 2 - Refactor the todo route into routes and controllers
 
 This stage is all about moving the endpoint that was just written into specific route and controller files.
 
@@ -383,7 +396,7 @@ module.exports = app;
 
 The `app.test.js` file test for the `/todos` route should still pass as should any manual test in the browser or Postman.
 
-## Build the the API - Part 5 - Add the first controller function unit test
+## GET /todos 3 - Unit testing the getAllTodos controller function
 
 ### import required files into the controller test file
 
@@ -442,7 +455,7 @@ All tests should pass.
 
 **At this point, the first API endpoint is complete, refactored, and fully tested.**
 
-## Build the the API - Part 6 - Endpoint 2 for a single todo by ID
+## GET /todos/:id 1 - Basic getTodoById controller function and unit test
 
 ### Create the single todo controller function
 
@@ -479,7 +492,7 @@ In the todoController.test.js file, add `getTodoById` to the imports.
 const { getAllTodos, getTodoById } = require('./todoController');
 ```
 
-Add a `describe` block for the `getTodoById` function and a **parameterised** `test` block for the happy route:
+Add a `describe` block for the `getTodoById` function and a **parameterised** `test` block for the happy route providing each tyest with `id`, `task`, and `completed` parameters.
 ```javascript
 describe('getTodoById()', () => {
     test.each([
@@ -517,17 +530,122 @@ describe('getTodoById()', () => {
 
 **NOTE:** The last assertion in this test is an alternative to the previous three and in this case probably a much better option.
 
-## Build the the API - Part 7 - Add error handling to the single todo controller function
+## GET /todos/:id 2 - Error handling in the getTodoById controller function and unit testing errors
+
+### Add a helper function to make the `id` parameter a number
+In the controller file, create a `getIdNumber` helper function.
+```javascript
+const getIdNumber = (req) => {
+  let { id } = req.params;
+  if (typeof id !== 'number' || isNaN(id) || id % 1 !== 0) return null;
+  return Number(id);
+}
+```
+This validates the `id` parameter and returns it as a number or `null` if it is not parseable as a number and then unsures that is is returned as a number.
 
 ### Validate the `id` parameter type
-Right after the `id` parameter is destructured from `req.params`, add a check to see if it is a number. If it is not, throw an error.
+Right after the `id` is returned from the `getIdNumber` function, add a check to see if it is `null`. If it is, return an error.
 ```javascript
-if (typeof id !== 'number' || isNaN(id)) return next({ status: 400, message: `Invalid id, ${id} given. ID must be a number.` });
+if (!id) return next({ status: 400, message: `Invalid id provided. ID must be a number.` });
 ```
 
 ### Add error handling for the case where the `id` does not exist in the database
 In the `try` block, add a check to see if `results.rows` is empty. If it is, throw an error.
 ```javascript
+if (!results.rows.length) return next({status: 404, message: `No todo with an ID of ${id} could be found in the database.`})
+```
+
+### Add controller function tests for invalid and non-existent `id` parameters
+
+Add new parameterised tests providing each test with an `id`, `status`, and `errorMessage` parameter.
+```javascript
+test.each([
+      [2000, 404, 'No todo with an ID of 2000 could be found in the database.'],
+      ['dog', 400, 'Invalid id provided. ID must be a number.'],
+      [true, 400, 'Invalid id provided. ID must be a number.'],
+    ])('should return an appropriate status and error message when called with an ID param of %s', async (id, status, errorMessage) => {
+      // Arrange
+      const mReq = {
+        params: {
+          id
+        }
+      };
+      const mRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn()
+      };
+      const mNext = jest.fn();
+
+      // Act
+      await getTodoById(mReq, mRes, mNext);
+
+      // Assert
+      expect(mRes.status).not.toHaveBeenCalled();
+      expect(mNext).toHaveBeenCalledWith({ status, message: errorMessage })
+      expect(mNext.mock.calls[0][0].status).toBe(status);
+      expect(mNext.mock.calls[0][0].message).toBe(errorMessage);
+    })
+```
+
+**NOTE:** The second assertion here is an alternative to the third and fourth assertions. Take you pick but there is no point in including both.
+
+## GET /todos/:id 3 - Add the single todo route and write integration tests
+
+### Create the single todo route
+
+Add the `getTodoById` function to the todoController imports.
+```javascript
+const { getAllTodos, getTodoById } = require('../controllers/todoController');
+```
+
+In the routes/todoRoutes.js file, add the single todo route:
+```javascript
+router.get('/:id', getTodoById);
+```
+
+### Add a 'happy route' integration test for the single todo route
+
+Within the over-arching `describe` block in the app.test.js file:
+```javascript
+describe('GET /todos/:id', () => {
+    test.each([
+      [1, 'Eat', true],
+      [2, 'Sleep', false],
+      [3, 'Pray', false]
+    ])('should return an array with a single todo and status 200 when called with an ID param of %s', async (id, task, completed) => {
+      // Act
+      const response = await request(app).get(`/todos/${id}`);
+
+      // Assert
+      expect(response.status).toBe(200);
+      expect(response.body.length).toBe(1);
+      expect(response.body[0].task).toBe(task);
+      expect(response.body[0].completed).toBe(completed);
+    })
+  })
+```
+
+### Add integration tests for invalid and non-existent `id` parameters
+
+Within the `GET /todos/:id` `describe` block:
+```javascript
+test.each([
+      [2000, 404, 'No todo with an ID of 2000 could be found in the database.'],
+      ['dog', 400, 'Invalid id provided. ID must be a number.'],
+      [true, 400, 'Invalid id provided. ID must be a number.']
+    ])('should return an appropriate status and error message when called with an ID param of %s', async (id, status, errorMessage) => {
+      // Act
+      const response = await request(app).get(`/todos/${id}`);
+
+      // Assert
+      expect(response.status).toBe(status);
+      expect(response.body.message).toBe(errorMessage);
+    })
+```
+
+## ## POST /todos 1 - Basic addTodo controller function and unit tests
+
+
 
 
 
