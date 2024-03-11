@@ -643,7 +643,25 @@ test.each([
     })
 ```
 
-## ## POST /todos 1 - Basic addTodo controller function and unit tests
+## POST /todos 1 - Basic addTodo controller function and unit tests
+
+### Create the basic addTodo controller function
+
+In the todoController.js file, create the `addTodo` function:
+```javascript
+const addTodo = async (req, res, next) => {
+  const { task } = req.body;
+  const addTodoQuery = 'INSERT INTO todos (task, completed) VALUES ($1, false) RETURNING *';
+
+  try {
+    const results = await pool.query(addTodoQuery, [task]);
+    res.status(201).json(results.rows);
+  } catch (error) {
+    next(error);
+  }
+};
+```
+
 
 
 
