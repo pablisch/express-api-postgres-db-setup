@@ -537,16 +537,19 @@ In the controller file, create a `getIdNumber` helper function.
 ```javascript
 const getIdNumber = (req) => {
   let { id } = req.params;
-  if (typeof id !== 'number' || isNaN(id) || id % 1 !== 0) return null;
+  if (!id) return null;
+  if (isNaN(id) || id === true) return 'invalid';
   return Number(id);
 }
 ```
-This validates the `id` parameter and returns it as a number or `null` if it is not parseable as a number and then unsures that is is returned as a number.
+This validates the `id` parameter and returns it as a number, `null` if no `id` was provided, or `'invalid'` if it is not parseable as a number and then unsures that is is returned as a number.
+
+**NOTE:** The `!id` check is not needed at this stage but will be needed for the `DELETE` and `PUT` routes later on.
 
 ### Validate the `id` parameter type
 Right after the `id` is returned from the `getIdNumber` function, add a check to see if it is `null`. If it is, return an error.
 ```javascript
-if (!id) return next({ status: 400, message: `Invalid id provided. ID must be a number.` });
+if (id === 'invalid') return next({ status: 400, message: `Invalid id provided. ID must be a number.` });
 ```
 
 ### Add error handling for the case where the `id` does not exist in the database
@@ -662,6 +665,180 @@ const addTodo = async (req, res, next) => {
 };
 ```
 
+Add `addTodo` to the exports:
+```javascript
+module.exports = {
+  getAllTodos,
+  getTodoById,
+  addTodo
+};
+```
+
+### Create 'happy route' tests for the addTodo controller function
+
+In the todoController.test.js file, add `addTodo` to the imports.
+```javascript
+const { getAllTodos, getTodoById, addTodo } = require('./todoController');
+```
+
+Add a `describe` block for the `addTodo` function and a `test` block for the happy route.
+```javascript
+describe('addTodo()', () => {
+    test.each(['Climb', 'Swim', 'Climb a tree'])('should add a todo to the database and return an array with the added todo and status 201', async (task) => {
+      // Arrange
+      const mReq = {
+        body: {
+          task
+        }
+      };
+      const mRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn()
+      };
+      const mNext = jest.fn();
+
+      // Act
+      await addTodo(mReq, mRes, mNext);
+
+      // Assert
+      expect(mRes.status).toHaveBeenCalledWith(201);
+      expect(mRes.json.mock.calls[0][0].length).toBe(1);
+      expect(mRes.json.mock.calls[0][0][0].task).toBe(task);
+      expect(mRes.json.mock.calls[0][0][0].completed).toBe(false);
+    })
+  })
+```
+
+## POST /todos 2 - Error handling in the addTodo controller function and unit testing errors
+
+### Validate the `task` parameter
+
+Right after the `task` is destructured from `req.body`, add a check to see if it is `undefined` or an empty string. If it is, return an error.
+```javascript
+if (!task) return next({ status: 400, message: `Task is required.` });
+```
+
+Then check to see if the `task` is a string. If it is not, return an error.
+```javascript
+if (typeof task !== 'string') return next({ status: 400, message: `Task must be a string.` });
+```
+
+### Add controller function tests for invalid `task` parameters
+
+Add new parameterised tests providing each test with a `task` and `errorMessage` parameter.
+```javascript
+test.each([
+    [undefined, 'No task was provided.'],
+    ['', 'No task was provided.'],
+    [212, 'Task must be a string.'],
+    [true, 'Task must be a string.'],
+  ])('should return status 400 and an appropriate error message when passed task, "%s" in the request body', async (task, errorMessage) => {
+    // Arrange
+    const mReq = {
+      body: {
+        task
+      }
+    };
+    const mRes = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn()
+    };
+    const mNext = jest.fn();
+
+    // Act
+    await addTodo(mReq, mRes, mNext);
+
+    // Assert
+    expect(mRes.status).not.toHaveBeenCalled();
+    expect(mNext).toHaveBeenCalledWith({ status: 400, message: errorMessage });
+    expect(mNext.mock.calls[0][0].status).toBe(400);
+    expect(mNext.mock.calls[0][0].message).toBe(errorMessage);
+  })
+```
+
+## POST /todos 3 - Add the addTodo route and write integration tests
+
+### Create the addTodo route
+
+Add the `addTodo` function to the todoController imports.
+```javascript
+const { getAllTodos, getTodoById, addTodo } = require('../controllers/todoController');
+```
+
+Add the addTodo route:
+```javascript
+router.post('/', addTodo);
+```
+
+### Add 'happy route' integration tests for the addTodo route
+
+Within the over-arching `describe` block in the app.test.js file:
+```javascript
+describe('POST /todos', () => {
+    test.each(['Climb', 'Swim', 'Climb a tree'])('should add a todo to the database and return status 201 and an array containing the created todo object', async (task) => {
+      // Act
+      const response = await request(app).post('/todos').send({ task });
+
+      // Assert
+      expect(response.status).toBe(201);
+      expect(response.body.length).toBe(1);
+      expect(response.body[0].task).toBe(task);
+      expect(response.body[0].completed).toBe(false);
+    })
+  })
+```
+
+### Add integration tests for invalid `task` parameters
+
+Within the `POST /todos` `describe` block:
+```javascript
+test.each([
+      [undefined, 'No task was provided.'],
+      ['', 'No task was provided.'],
+      [212, 'Task must be a string.'],
+      [true, 'Task must be a string.'],
+    ])('should return status 400 and an appropriate error message when given task value of %s', async (task, errorMessage) => {
+      // Act
+      const response = await request(app).post('/todos').send({ task });
+
+      // Assert
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe(errorMessage);
+    })
+```
+
+**NOTE:** Traditionally, the `PUT` route comes next but I always feel that it is the most complex of all the routes and so I have left it until last. 
+
+## DELETE /todos/:id 1 - Basic deleteTodo controller function and unit tests
+
+### Create the basic deleteTodo controller function
+
+In the todoController.js file, create the `deleteTodo` function:
+```javascript
+const deleteTodo = async (req, res, next) => {
+  const id = getIdNumber(req);
+  const deleteTodoQuery = 'DELETE FROM todos WHERE id = $1 RETURNING *';
+
+  try {
+    const results = await pool.query(deleteTodoQuery, [id]);
+    res.status(200).json(results.rows);
+  } catch (errro) {
+    next(error);
+  }
+}
+```
+
+Add `deleteTodo` to the exports:
+```javascript
+module.exports = {
+  getAllTodos,
+  getTodoById,
+  addTodo,
+  deleteTodo
+};
+```
+
+### Create 'happy route' tests for the deleteTodo controller function
 
 
 
@@ -673,3 +850,105 @@ const addTodo = async (req, res, next) => {
 
 
 
+
+
+
+
+
+
+## Notes on the Tests in this Repo
+
+### Integration Tests
+
+These test the API endpoints and the database together. They are written in the `app.test.js` file and use the `supertest` package to make requests to the server and check the responses.
+
+Example:
+```javascript
+const response = await request(app).post('/todos').send({ task });
+```
+
+Here, `request(app)` is a function from `supertest` that makes a request to the server and `.post('/todos')` is the type of request and the endpoint. `.send({ task })` is the data being sent with the request.
+
+In the `response` object, you can check the status code and the body of the response, e.g.
+```javascript
+expect(response.status).toBe(200);
+expect(response.body.length).toBe(1);
+expect(response.body[0].task).toBe(task);
+expect(response.body[0].completed).toBe(completed);
+```
+
+### Controller Function Unit Tests
+
+These test the controller functions in isolation and use `Jest` to mock the `req` and `res` objects, and the `next` function.
+
+Example:
+```javascript
+// Arrange
+const mReq = {
+  params: { id },
+  body: {task, completed}
+};
+const mRes = {
+  status: jest.fn().mockReturnThis(),
+  json: jest.fn()
+}
+const mNext = jest.fn();
+```
+This is the most complex example taken from an `updateTodo` function test. 
+
+The `mReq` object is a mock request object with `params` and `body` properties. 
+The `mRes` object is a mock response object with `status` and `json` methods. 
+`mNext` is a mock of the `next` function.
+
+It is important to note here that `status` and `json` are both methods that have parameters passed to them. 
+
+In the assertions, there are two principle approaches. 
+* Assert a method `toHaveBeenCalledWith` a specific parameter.
+* Assert the value of an argument of a call in the `mock.calls` array.
+
+#### The `toHaveBeenCalledWith` approach
+
+Given the controller function code:
+```javascript
+res.status(200).json(results.rows);
+```
+
+We can see that `res` has been called with the argument `200` and `json` has been called with the argument `results.rows`.
+
+For the sake of example, let's say that `results.rows` is an array with a single object in it:
+```javascript
+const results = {
+  rows: [
+    { id: 1, task: 'Eat', completed: true }
+  ]
+}
+```
+
+The `mock.calls` array is an array of the calls to a method.
+So, `mock.calls[0]` is the first call to the method.
+And, `mock.calls[0][0]` is the first argument of the first call to the method, which in the above example is an array containing a single object.
+And so on, `mock.calls[0][0][0]` is the first (and in this case only) object in the array.
+
+It follows then, that `mRes.status.mock.calls[0][0]` is the first argument of the first call to the `status` method of the `mRes` object which is the mock of the `res` object.
+
+So, following the example above, we can assert:
+```javascript
+expect(mRes.status).toHaveBeenCalledWith(200);
+expect(mRes.json).toHaveBeenCalledWith([{ id: 1, task: 'Eat', completed: true }]);
+```
+
+But, we can also assert:
+```javascript
+expect(mRes.status.mock.calls[0][0]).toBe(200);
+expect(mRes.json.mock.calls[0][0]).toBe([{ id: 1, task: 'Eat', completed: true }]);
+```
+
+Or even:
+```javascript
+expect(mRes.status.mock.calls[0][0]).toBe(200);
+expect(mRes.json.mock.calls[0][0][0].id).toBe(1);
+expect(mRes.json.mock.calls[0][0][0].task).toBe('Eat');
+expect(mRes.json.mock.calls[0][0][0].completed).toBe(true);
+```
+
+These are ways of saying the same thing. In some cases one is easier and more readable than others.
