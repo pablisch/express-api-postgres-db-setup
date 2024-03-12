@@ -1,12 +1,24 @@
-# Express API with PostgreSQL Database setup
+# How to build an Express Todo API with PostgreSQL Database setup
 
-This project is simply to outline the processes involved in setting up an Express API with a PostgreSQL database.
+* This project is simply to outline the processes involved in setting up an Express API with a PostgreSQL database.
+* This example uses `todos` but the principle is the same for any API.
+* Code files included are purely intended as a comprehenisve example of the instructions provided in this README.md file.
+* The order in which the API and database are made are optional. These instructions provide one possible order.
 
-Code files included are purely intended as a comprehenisve example of the instructions provided in this README.md file.
+## Set up
 
-The order in which the API and database are made are optional. These instructions provide one possible order.
-
-The details of both the API and database obviously depend on the specific requirements of the project but for the sake of an example, this will be in the form of a simple to-do list project.
+The purpose of this project is a README guide, not to run the API, but should you wish to then follow these steps:
+* Clone this repository.
+* Run `npm install` to install the dependencies.
+* Create a `.env` file in the root of the project and add the following environment variables:
+  * `DB_USERNAME=your_username`
+  * `DB_PASSWORD=your_password`
+* Replace `your_username` and `your_password` with your PostgreSQL username and password.
+* Create a database called `todolist` in PostgreSQL.
+* Run the `tables.sql` and `seeds.sql` files in the `db` folder to create the tables and seed the database.
+* Run `npm start` to start the server.
+* Use a tool like Postman to make requests to the API.
+* Run `npm test` to run the tests.
 
 ## Contents
 
