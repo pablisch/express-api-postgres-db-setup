@@ -1,0 +1,18 @@
+# See http://help.github.com/ignore-files/ for more about ignoring files.
+
+bundle.js
+
+# IDE - VSCode
+.vscode/*
+!.vscode/settings.json
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# dotenv environment variables file
+.env
+
+# System Files
+.DS_Store
+Thumbs.db

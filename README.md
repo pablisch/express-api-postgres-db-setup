@@ -1339,3 +1339,11 @@ expect(mRes.json.mock.calls[0][0][0].completed).toBe(true);
 ```
 
 These are ways of saying the same thing. In some cases one is easier and more readable than others.
+
+### Test results
+
+<img src="./images/express-test.png" alt="home screen" width="500" />
+
+This shows the results of the tests in the terminal when run with `--watchAll`.
+
+Although there are 66 tests in this case, many are duplicated in their functionality to demonstrate different ways of doing the same thing which should not be done in a real world scenario.
