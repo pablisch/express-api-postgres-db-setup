@@ -537,19 +537,16 @@ In the controller file, create a `getIdNumber` helper function.
 ```javascript
 const getIdNumber = (req) => {
   let { id } = req.params;
-  if (!id) return null;
-  if (isNaN(id) || id === true) return 'invalid';
+  if (isNaN(id) || id === true) return null;
   return Number(id);
 }
 ```
-This validates the `id` parameter and returns it as a number, `null` if no `id` was provided, or `'invalid'` if it is not parseable as a number and then unsures that is is returned as a number.
-
-**NOTE:** The `!id` check is not needed at this stage but will be needed for the `DELETE` and `PUT` routes later on.
+This validates the `id` parameter and returns it as a number if it can be parsed as such, or `null` if it is not parseable as a number.
 
 ### Validate the `id` parameter type
 Right after the `id` is returned from the `getIdNumber` function, add a check to see if it is `null`. If it is, return an error.
 ```javascript
-if (id === 'invalid') return next({ status: 400, message: `Invalid id provided. ID must be a number.` });
+if (!id) return next({ status: 400, message: `Invalid id provided. ID must be a number.` });
 ```
 
 ### Add error handling for the case where the `id` does not exist in the database
@@ -839,6 +836,150 @@ module.exports = {
 ```
 
 ### Create 'happy route' tests for the deleteTodo controller function
+
+In the todoController.test.js file, add `deleteTodo` to the imports.
+```javascript
+const { getAllTodos, getTodoById, addTodo, deleteTodo } = require('./todoController');
+```
+
+Add a `describe` block for the `deleteTodo` function and a `test` block for the happy route.
+```javascript
+describe('deleteTodo()', () => {
+    test.each([
+      [1, 'Eat', true],
+      [2, 'Sleep', false],
+      [3, 'Pray', false]
+    ])('should delete todo with id %s from the database and return status 200 and an array contianing only the deleted todo object', async (id, task, completed) => {
+      // Arrange
+      const mReq = {
+        params: {
+          id
+        }
+      };
+      const mRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn()
+      };
+      const mNext = jest.fn();
+
+      // Act
+      await deleteTodo(mReq, mRes, mNext);
+
+      // Assert
+      expect(mRes.status).toHaveBeenCalledWith(200);
+      expect(mRes.json).toHaveBeenCalledWith([{ id, task, completed }]);
+      expect(mRes.json.mock.calls[0][0].length).toBe(1);
+      expect(mRes.json.mock.calls[0][0][0].task).toBe(task)
+    })
+  })
+```
+
+## DELETE /todos/:id 2 - Error handling in the deleteTodo controller function and unit testing errors
+
+### Validate the `id` parameter
+
+Right after the `id` is returned from the `getIdNumber` function, add a check to see if it is exists. `getIdNumber` returns `null` if the `id` is not a number.
+```javascript
+if (!id) return next({ status: 400, message: 'Invalid id provided. ID must be a number.' });
+```
+
+And right after the database query, add a check to see if `results.rows` is empty, i.e. the id was not found.
+```javascript
+if (!results.rows.length) return next({ status: 404, message: `No todo with an ID of ${id} could be found in the database.` });
+```
+
+### Add controller function tests for invalid and not found `id` parameters
+
+Add new parameterised tests providing each test with an `id`, `status` and `errorMessage` parameter.
+```javascript
+test.each([
+      ['cat', 400, 'Invalid id provided. ID must be a number.'],
+      [true, 400, 'Invalid id provided. ID must be a number.'],
+      [2000, 404, 'No todo with an ID of 2000 could be found in the database.'],
+    ])('should return an appropriate status and error message when passed params ID of "%s"', async (id, status, errorMessage) => {
+      // Arrange
+      const mReq = {
+        params: {
+          id
+        }
+      };
+      const mRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn()
+      };
+      const mNext = jest.fn();
+
+      // Act 
+      await deleteTodo(mReq, mRes, mNext);
+
+      // Assert
+      expect(mRes.status).not.toHaveBeenCalled();
+      expect(mNext).toHaveBeenCalledWith({ status, message: errorMessage });
+      expect(mNext.mock.calls[0][0].status).toBe(status);
+      expect(mNext.mock.calls[0][0].message).toBe(errorMessage);
+    })
+```
+
+## DELETE /todos/:id 3 - Add the deleteTodo route and write integration tests
+
+### Create the deleteTodo route
+
+Add the `deleteTodo` function to the todoController imports.
+```javascript
+const { getAllTodos, getTodoById, addTodo, deleteTodo } = require('../controllers/todoController');
+```
+
+Add the deleteTodo route:
+```javascript
+router.delete('/:id', deleteTodo);
+```
+
+### Add 'happy route' integration tests for the deleteTodo route
+
+Within the over-arching `describe` block in the app.test.js file:
+```javascript
+describe('DELETE /todos/:id', () => {
+    test.each([
+      // [1, 'Eat', true],
+      [2, 'Sleep', false],
+    ])('should delete todo from database and return status 200 and an array with the deleted todo object with id, "%s"', async (id, task, completed) => {
+      // Act 
+      const response = await request(app).delete(`/todos/${id}`);
+
+      // Assert
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual([{ id, task, completed }]);
+      expect(response.body[0].id).toBe(id);
+      expect(response.body[0].task).toBe(task);
+      expect(response.body[0].completed).toBe(completed);
+    })
+  })
+```
+
+### Add integration tests for invalid and not found `id` parameters
+
+Within the `DELETE /todos/:id` `describe` block:
+```javascript
+test.each([
+  ['cat', 400, 'Invalid id provided. ID must be a number.'],
+  // [true, 400, 'Invalid id provided. ID must be a number.'],
+  // [2000, 404, 'No todo with an ID of 2000 could be found in the database.'],
+])('should return an appropriate status and error message when passed the ID param, "%s"', async (id, status, errorMessage) => {
+  // Act
+  const response = await request(app).delete(`/todos/${id}`);
+
+  // Assert
+  expect(response.status).toBe(status);
+  expect(response.body.message).toBe(errorMessage);
+  expect(response.body).toEqual({ message: errorMessage });
+})
+```
+
+## PUT /todos/:id 1 - Basic updateTodo controller function and unit tests
+
+### Create the basic updateTodo controller function
+
+
 
 
 
