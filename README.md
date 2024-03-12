@@ -962,8 +962,8 @@ Within the `DELETE /todos/:id` `describe` block:
 ```javascript
 test.each([
   ['cat', 400, 'Invalid id provided. ID must be a number.'],
-  // [true, 400, 'Invalid id provided. ID must be a number.'],
-  // [2000, 404, 'No todo with an ID of 2000 could be found in the database.'],
+  [true, 400, 'Invalid id provided. ID must be a number.'],
+  [2000, 404, 'No todo with an ID of 2000 could be found in the database.'],
 ])('should return an appropriate status and error message when passed the ID param, "%s"', async (id, status, errorMessage) => {
   // Act
   const response = await request(app).delete(`/todos/${id}`);
@@ -977,25 +977,259 @@ test.each([
 
 ## PUT /todos/:id 1 - Basic updateTodo controller function and unit tests
 
+**NOTE:** I used to do this in a more complex way that would allow for only updated data to be sent to the function. Whilst this worked well, it is much easier to work on the assumption that all properties will be sent in the request, i.e. even if only one property is being updated, all properties will be sent. This is the approach I will take here. The previous code is shown below for reference.
+
+PROS: 
+* Works with limited data sent in the request.
+* Only updates data that needs updating.
+
+CONS:
+* More complex logic.
+  
+All in all, this way seems like a more performant way of doing things. It is perhaps unnecessary in such a small application but the logic might get quite out of hand in a larger case scenario.
+
+```javascript
+const updateTodo = async (req, res, next) => {
+  const id = getIdNumber(req);
+  if (!id) return next({ status: 400, message: 'Invalid id provided. ID must be a number.' });
+
+  const { task, completed } = req.body;
+  const { query, params } = constructUpdateQuery(id, task, completed);
+
+  if (params.length < 2) return next({ status: 400, message: 'No update data provided' });
+
+  try {
+    const results = await pool.query(query, params);
+    if (!results.rows.length) return next({ status: 404, message: `No todo with an ID of ${id} could be found in the database.` });
+    res.status(201).json(results.rows);
+  } catch (error) {
+    next (error)
+  }
+}
+
+const constructUpdateQuery = (id, task, completed) => {
+  const params = [];
+  const values = [];
+  if (task) {
+    params.push(task);
+    values.push(`task = $${params.length}`);
+  };
+  if (completed !== undefined) {
+    params.push(completed);
+    values.push(`completed = $${params.length}`);
+  };
+  params.push(id);
+  const query = `UPDATE todos SET ${values.join(', ')} WHERE id = $${params.length} RETURNING *`;
+
+  return { query, params };
+}
+```
+
+The `constructUpdateQuery` function constructs the query and the parameters according to the data sent in the request and NOT all of the data in the object.
+
 ### Create the basic updateTodo controller function
 
+In the todoController.js file, create the `updateTodo` function:
+```javascript
+const updateTodo = async (req, res, next) => {
+  const id = getIdNumber(req);
+  const { task, completed } = req.body;
+  
+  const updateTodoQuery = 'UPDATE todos SET task = $1, completed = $2 WHERE id = $3 RETURNING *';
 
+  try {
+    const results = await pool.query(updateTodoQuery, [task, completed, id]);
+    res.status(201).json(results.rows);
+  } catch (error) {
+    next (error)
+  }
+}
+```
 
+Add `updateTodo` to the exports:
+```javascript
+module.exports = {
+  getAllTodos,
+  getTodoById,
+  addTodo,
+  deleteTodo,
+  updateTodo
+};
+```
 
+### Create 'happy route' tests for the updateTodo controller function
 
+In the todoController.test.js file, add `updateTodo` to the imports.
+```javascript
+const { getAllTodos, getTodoById, addTodo, deleteTodo, updateTodo } = require('./todoController');
+```
 
+Add a `describe` block for the `updateTodo` function and a `test` block for the happy route.
+```javascript
+describe('updateTodo()', () => {
+    test.each([
+      [1, "Jump", false],
+      [2, "Dream", true],
+      [1, "Swim", true],
+    ])('should update todo in the database and return status 201 and the updated todo object', async (id, task, completed) => {
+      // Arrange
+      const mReq = {
+        params: {
+          id
+        },
+        body: {
+          task, completed
+        }
+      };
+      const mRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn()
+      };
+      const mNext = jest.fn();
 
+      // Act 
+      await updateTodo(mReq, mRes, mNext);
 
+      // Assert
+      expect(mRes.status).toHaveBeenCalledWith(201);
+      expect(mRes.json).toHaveBeenCalledWith([{ id, task, completed }]);
+      expect(mRes.json.mock.calls[0][0].length).toBe(1);
+      expect(mRes.json.mock.calls[0][0][0].id).toBe(id);
+      expect(mRes.json.mock.calls[0][0][0].task).toBe(task);
+      expect(mRes.json.mock.calls[0][0][0].completed).toBe(completed);
+    })
+  });
+```
 
+## PUT /todos/:id 2 - Error handling in the updateTodo controller function and unit testing errors
 
+### Validate the id, task and completed parameters
 
+Right after the `id` is returned from the `getIdNumber` function, add a check to see if it is exists. `getIdNumber` returns `null` if the `id` is not a number.
+```javascript
+if (!id) return next({ status: 400, message: 'Invalid id provided. ID must be a number.' });
+```
 
+Right after the `task` and `completed` are destructured from `req.body`, add a check to see if they are `undefined` or an empty string. If they are, return an error.
+```javascript
+if (!task || !completed && completed !== false) return next({ status: 400, message: 'Task and completed properties are required to update this todo.' });
+```
 
+Directly after this, check that `completed` is a boolean and `task` is a string.
+```javascript
+if (typeof completed !== 'boolean') return next({status: 400, message: 'The completed property must be of type boolean.'})
+  if (typeof task !== 'string') return next({status: 400, message: 'The task property must be of type string.'})
+```
 
+Lastly, check that a todo with the gievn `id` was found in the database.
+```javascript
+if (!results.rows.length) return next({ status: 404, message: `No todo with an ID of ${id} could be found in the database.` });
+```
 
+### Add controller function tests for invalid and not found `id` parameters
 
+Add new parameterised tests providing each test with an `id`, `task`, `completed`, `status` and `errorMessage` parameter.
+```javascript
+test.each([
+      [1, '', false, 400, 'Task and completed properties are required to update this todo.'],
+      [2, 'Dream', undefined, 400, 'Task and completed properties are required to update this todo.'],
+      [3, 'Dream', 'fish', 400, 'The completed property must be of type boolean.'],
+      [1, 'Dream', 212, 400, 'The completed property must be of type boolean.'],
+      [2, true, true, 400, 'The task property must be of type string.'],
+      [3, 212, true, 400, 'The task property must be of type string.'],
+      [3000, 'Fly', 'pig', 400, 'The completed property must be of type boolean.'],
+      [3000, 'Fly', true, 404, 'No todo with an ID of 3000 could be found in the database.'],
+    ])('should return an appropriate status and error message for todo with id of "%s", task "%s" and completed property "%s"', async (id, task, completed, status, errorMessage) => {
+      // Arrange
+      const mReq = {
+        params: {
+          id
+        },
+        body: {
+          task, completed
+        }
+      };
+      const mRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn()
+      };
+      const mNext = jest.fn();
 
+      // Act 
+      await updateTodo(mReq, mRes, mNext);
 
+      // Assert
+      expect(mRes.status).not.toHaveBeenCalled();
+      expect(mNext).toHaveBeenCalledWith({ status, message: errorMessage });
+      expect(mNext.mock.calls[0][0]).toEqual({ status, message: errorMessage });
+      expect(mNext.mock.calls[0][0].status).toBe(status);
+      expect(mNext.mock.calls[0][0].message).toBe(errorMessage);
+    })
+```
+
+## PUT /todos/:id 3 - Add the updateTodo route and write integration tests
+
+### Create the updateTodo route
+
+Add the `updateTodo` function to the todoController imports.
+```javascript
+const { getAllTodos, getTodoById, addTodo, deleteTodo, updateTodo } = require('../controllers/todoController');
+```
+
+Add the updateTodo route:
+```javascript
+router.put('/:id', updateTodo);
+```
+
+### Add 'happy route' integration tests for the updateTodo route
+
+Within the over-arching `describe` block in the app.test.js file:
+```javascript
+describe('UPDATE /todos/:id', () => {
+    test.each([
+      [1, 'Eat', false],
+      [2, 'Dream', true],
+      [3, 'Pray', true],
+      [1, 'Swim', false],
+      [2, 'Dream', false],
+    ])('should update todo in the database and return status 201 and an array with the updated todo object with id, "%s"', async (id, task, completed) => {
+      // Act 
+      const response = await request(app).put(`/todos/${id}`).send({ task, completed });
+
+      // Assert
+      expect(response.status).toBe(201);
+      expect(response.body).toEqual([{ id, task, completed }]);
+      expect(response.body[0].id).toBe(id);
+      expect(response.body[0].task).toBe(task);
+      expect(response.body[0].completed).toBe(completed);
+    });
+  });
+  ```
+
+  ### Add integration tests for invalid id, task and completed data and not found `id` parameters
+
+Within the `UPDATE /todos/:id` `describe` block:
+```javascript
+test.each([
+  [1, '', false, 400, 'Task and completed properties are required to update this todo.'],
+  [2, 'Dream', undefined, 400, 'Task and completed properties are required to update this todo.'],
+  [3, 'Dream', 'fish', 400, 'The completed property must be of type boolean.'],
+  [1, 'Dream', 212, 400, 'The completed property must be of type boolean.'],
+  [2, true, true, 400, 'The task property must be of type string.'],
+  [3, 212, true, 400, 'The task property must be of type string.'],
+  [3000, 'Fly', 'pig', 400, 'The completed property must be of type boolean.'],
+  ['cat', 'Fly', true, 400, 'Invalid id provided. ID must be a number.'],
+  [3000, 'Fly', true, 404, 'No todo with an ID of 3000 could be found in the database.'],
+])('should return an appropriate status and error message when passed the ID param, "%s"', async (id, task, completed, status, errorMessage) => {
+  // Act
+  const response = await request(app).put(`/todos/${id}`).send({ task, completed });
+
+  // Assert
+  expect(response.status).toBe(status);
+  expect(response.body.message).toBe(errorMessage);
+  expect(response.body).toEqual({ message: errorMessage });
+});
+```
 
 ## Notes on the Tests in this Repo
 
