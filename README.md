@@ -175,7 +175,6 @@ module.exports = resetDbData;
 In the app.js file, create the Express server and set up the required middleware. For example:
 ```javascript
 const express = require('express');
-const todoRoutes = require('./routes/todoRoutes');
 
 const app = express();
 
