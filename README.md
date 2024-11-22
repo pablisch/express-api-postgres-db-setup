@@ -105,10 +105,23 @@ INSERT INTO todos (task, completed) VALUES
 -- psql -h 127.0.0.1 todolist < seeds.sql
 ```
 
+### Set up scripts for setting up tables and seeding data
+
+In `package.json` add to scripts:
+```bash
+"db:tables": "psql -h 127.0.0.1 todolist < tables.sql",
+"db:seed": "psql -h 127.0.0.1 todolist < seeds.sql",
+"db:reseed": "psql -h 127.0.0.1 todolist < tables.sql && psql -h 127.0.0.1 todolist < seeds.sql"
+```
+
 ### Create and seed the database tables
 
-In the terminal, run the following commands to create and seed the database tables:
+In the terminal, either:
+```bash
+npm run db:reseed
 ```
+OR
+```bash
 psql -h 127.0.0.1 todolist < tables.sql
 psql -h 127.0.0.1 todolist < seeds.sql
 ```
