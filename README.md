@@ -883,7 +883,7 @@ const deleteTodo = async (req, res, next) => {
   try {
     const results = await pool.query(deleteTodoQuery, [id]);
     res.status(200).json(results.rows);
-  } catch (errro) {
+  } catch (error) {
     next(error);
   }
 }
@@ -913,7 +913,7 @@ describe('deleteTodo()', () => {
       [1, 'Eat', true],
       [2, 'Sleep', false],
       [3, 'Pray', false]
-    ])('should delete todo with id %s from the database and return status 200 and an array contianing only the deleted todo object', async (id, task, completed) => {
+    ])('should delete todo with id %s from the database and return status 200 and an array containing only the deleted todo object', async (id, task, completed) => {
       // Arrange
       const mReq = {
         params: {
@@ -1039,7 +1039,7 @@ test.each([
 })
 ```
 
-## PUT /todos/:id 1 - Basic updateTodo controller function and unit tests
+## PATCH /todos/:id 1 - Basic updateTodo controller function and unit tests
 
 **NOTE:** I used to do this in a more complex way that would allow for only updated data to be sent to the function. Whilst this worked well, it is much easier to work on the assumption that all properties will be sent in the request, i.e. even if only one property is being updated, all properties will be sent. This is the approach I will take here. The previous code is shown below for reference.
 
@@ -1165,7 +1165,7 @@ describe('updateTodo()', () => {
   });
 ```
 
-## PUT /todos/:id 2 - Error handling in the updateTodo controller function and unit testing errors
+## PATCH /todos/:id 2 - Error handling in the updateTodo controller function and unit testing errors
 
 ### Validate the id, task and completed parameters
 
