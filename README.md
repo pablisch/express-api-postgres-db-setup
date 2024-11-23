@@ -55,7 +55,7 @@ git init
 npm i express dotenv pg
 npm i -D jest supertest
 mkdir controllers routes utils
-touch .env .gitignore server.js app.js app.test.js db.js seeds.sql tables.sql utils/reset-db-data.js routes/todoRoutes.js controllers/todoController.js controllers/todoController.test.js
+touch .env .gitignore server.js app.js app.test.js db.js seeds.sql tables.sql utils/resetDbData.js routes/todoRoutes.js controllers/todoController.js controllers/todoController.test.js
 ```
 Add required file exemptions to .gitignore, e.g.
 ```
@@ -369,7 +369,7 @@ const { getAllTodos } = require('../controllers/todoController');
 module.exports = router;
 ```
 
-Betweeen the inports and export, add the first route:
+Betweeen the imports and export, add the first route:
 ```javascript
 router.get('/', getAllTodos);
 ```
@@ -413,21 +413,21 @@ At this point, you could also remove the `home` route from app.js, whose purpose
 
 The `app.js` file should now look ike this:
 ```javascript
-const express = require('express');
-const todoRoutes = require('./routes/todoRoutes');
+const express = require('express')
+const todoRoutes = require('./routes/todoRoutes')
 
-const app = express();
+const app = express()
 
-app.use(express.json());
+app.use(express.json())
 
-app.use('/todos', todoRoutes);
+app.use('/todos', todoRoutes)
 
 app.use((err, req, res, next) => {
-  const status = err.status || 500;
-  res.status(status).json({ message: err.message });
-});
+  const status = err.status || 500
+  res.status(status).json({ message: err.message })
+})
 
-module.exports = app;
+module.exports = app
 ```
 
 The `app.test.js` file test for the `/todos` route should still pass as should any manual test in the browser or Postman.
@@ -479,7 +479,7 @@ describe('getAllTodos()', () => {
   })
 ```
 
-**NOTE:** The last assertion here is an example way of checking the json response that performs a similar finction to the preceeding two assertions. This latter way is easier to remember  and understand but reuires the full json response to be known in advance.
+**NOTE:** The last assertion here is an example way of checking the json response that performs a similar function to the preceding two assertions. This latter way is easier to remember and understand but requires the full json response to be known in advance.
 
 ### Run the unit tests
 
@@ -579,6 +579,9 @@ const getIdNumber = (req) => {
 ```
 This validates the `id` parameter and returns it as a number if it can be parsed as such, or `null` if it is not parseable as a number.
 
+### Use getIdNumber in getTodoById
+Replace `const { id } = req.params` with `const id = getIdNumber(req)`.
+
 ### Validate the `id` parameter type
 Right after the `id` is returned from the `getIdNumber` function, add a check to see if it is `null`. If it is, return an error.
 ```javascript
@@ -589,6 +592,31 @@ if (!id) return next({ status: 400, message: `Invalid id provided. ID must be a 
 In the `try` block, add a check to see if `results.rows` is empty. If it is, throw an error.
 ```javascript
 if (!results.rows.length) return next({status: 404, message: `No todo with an ID of ${id} could be found in the database.`})
+```
+
+The `getTodoById` function should now be:
+```javascript
+const getTodoById = async (req, res, next) => {
+  const id = getIdNumber(req)
+  if (!id)
+    return next({
+      status: 400,
+      message: `Invalid id provided. ID must be a number.`,
+    })
+  const getSingleTodoQuery = 'SELECT * FROM todos WHERE id = $1'
+
+  try {
+    const results = await pool.query(getSingleTodoQuery, [id])
+    if (!results.rows.length)
+      return next({
+        status: 404,
+        message: `No todo with an ID of ${id} could be found in the database.`,
+      })
+    res.status(200).json(results.rows)
+  } catch (error) {
+    next(error)
+  }
+}
 ```
 
 ### Add controller function tests for invalid and non-existent `id` parameters
@@ -748,7 +776,7 @@ describe('addTodo()', () => {
 
 Right after the `task` is destructured from `req.body`, add a check to see if it is `undefined` or an empty string. If it is, return an error.
 ```javascript
-if (!task) return next({ status: 400, message: `Task is required.` });
+if (!task) return next({ status: 400, message: `No task was provided.` });
 ```
 
 Then check to see if the `task` is a string. If it is not, return an error.
