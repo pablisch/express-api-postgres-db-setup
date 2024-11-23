@@ -53,7 +53,7 @@ Initialise npm and git, install dependencies and dev dependencies, and create th
 npm init -y
 git init
 npm i express dotenv pg
-npm i -D nodemon jest supertest
+npm i -D jest supertest
 mkdir controllers routes utils
 touch .env .gitignore server.js app.js app.test.js db.js seeds.sql tables.sql utils/reset-db-data.js routes/todoRoutes.js controllers/todoController.js controllers/todoController.test.js
 ```
@@ -132,8 +132,8 @@ psql -h 127.0.0.1 todolist < seeds.sql
 
 In the .env file, add the environment variables required for the database connection. For example:
 ```
-DB_USERNAME=your_username
-DB_PASSWORD=your_password
+DATABASE_USER=your_username
+DATABASE_PASSWORD=your_password
 ```
 
 ### Setup database connection
@@ -144,8 +144,8 @@ require('dotenv').config();
 const { Pool } = require('pg');
 
 const pool = new Pool({
-  user: process.env.DB_USERNAME,
-  password: process.env.DB_PASSWORD,
+  user: process.env.DATABASE_USER,
+  password: process.env.DATABASE_PASSWORD,
   database: 'todolist',
   host: 'localhost',
   port: 5432
@@ -209,7 +209,7 @@ app.listen(PORT, () => {
 In the package.json file, add the following scripts:
 ```
 "scripts": {
-  "start": "node server.js",
+  "start": "node --watch server.js",
   "test": "jest --watchAll --detectOpenHandles"
 }
 ```
