@@ -6,7 +6,7 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD,
   port: 5432,
   host: 'localhost',
-  database: 'todolist-next-2'
+  database: 'todolist'
 });
 
 module.exports = pool;

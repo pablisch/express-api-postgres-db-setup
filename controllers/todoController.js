@@ -51,7 +51,7 @@ const deleteTodo = async (req, res, next) => {
     const results = await pool.query(deleteTodoQuery, [id]);
     if (!results.rows.length) return next({ status: 404, message: `No todo with an ID of ${id} could be found in the database.` });
     res.status(200).json(results.rows);
-  } catch (errro) {
+  } catch (error) {
     next(error);
   }
 }
